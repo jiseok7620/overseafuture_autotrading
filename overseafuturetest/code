@@ -1,0 +1,36 @@
+[현재시간구하기]
+now = datetime.datetime.now()
+print(now)
+
+nowDate = now.strftime('%Y%m%d')
+print(nowDate)
+
+nowTime = now.strftime('%H%M%S')
+print(nowTime)      # 12:11:32
+
+nowMinute = now.strftime('%M')
+print(nowMinute)
+
+
+[중복제거]
+dataset = dataset.drop_duplicates(['일자'])
+
+
+[컬럼명을 갖는 데이터프레임 만들기]
+low_df = pd.DataFrame(columns=('일자','최저수'))
+
+
+[데이터프레임 열의 데이터 타입 변환하기]
+dataset = dataset.astype({'일시':'str'})
+
+
+[데이터프레임에 리스트를 행으로 추가하기]
+low_df = low_df.append(pd.Series(low_bf_arr, index=low_df.columns), ignore_index=True)
+
+
+[데이터프레임에서 조건을 만족하는 인덱스 구하기]
+low_ind = inte_df[inte_df['일시']==low_df.iloc[m]['일시']].index[0]
+
+
+[데이터프레임 인덱스 초기화]
+ddf.reset_index(drop=True)

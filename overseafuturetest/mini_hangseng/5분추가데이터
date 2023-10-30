@@ -1,0 +1,247 @@
+1. buy_sell
+# 1분, 5분 데이터
+dataset_5m = pd.read_excel('F:/JusikData/short_invest/mini_hangseng5.xlsx', engine='openpyxl')
+
+# 1분, 5분 최대-최저선 데이터
+inte_lowhigh_5m = pd.read_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', engine='openpyxl') 
+
+# 5분마다 데이터 가져오기
+inte_df_5m = dataset_5m
+if int(nowMinute) % 5 == 0 :
+    time.sleep(1) # 시작 전 1초 쉬기
+    data_5m = o3103_cls.exe_o3103(self, "HMHH22", "5", "30", 1)
+    data_5m = data_5m.reset_index(drop=True) # 인덱스 초기화
+    data_5m = data_5m.drop(len(data_5m)-1) # 마지막 행 삭제 = 마지막 행은 현재시간으로 진행되고 있기 때문에
+    data_5m['20이평'] = data_5m['종가'].rolling(window=20).mean() # 20일 이동평균만들기
+    data_5m['고가이격도'] = (((data_5m['고가'] / data_5m['20이평']) * 100) - 100) * 100
+    data_5m['저가이격도'] = (((data_5m['저가'] / data_5m['20이평']) * 100) - 100) * 100
+    inte_df_5m = inte_df_5m.append(data_5m, sort=False) # 전체 데이터에 하나의 데이터 추가
+    inte_df_5m = inte_df_5m.drop_duplicates(['일시']) # 중복이 있으면 제거
+    inte_df_5m = inte_df_5m.reset_index(drop=True) # 인덱스 초기화
+    inte_df_5m.to_excel('F:/JusikData/short_invest/mini_hangseng5.xlsx', index=False)
+   
+print('5분 추가 :',inte_df_5m.iloc[-1]['일시'].astype('str'))
+
+
+2. send_sign
+close_5m = inte_df_5m.iloc[-1]['종가'] # 현재가 = 신호 시 진입가
+open_5m = inte_df_5m.iloc[-1]['시가'] # 현재 시가
+close_5m_ago = inte_df_5m.iloc[-2]['종가'] # 전일 종가
+todaydatetime_5m = inte_df_5m.iloc[-1]['일시'] # 일시
+
+# 터치 데이터
+touch_data_5m = touch_cls.exe_touch(self, inte_lowhigh_5m, close_5m, open_5m, close_5m_ago, todaydatetime_5m)
+touch_data_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+
+# 둘터치 발생 시 알림
+info_5m_touch2 = touch_data_5m[touch_data_5m['둘터치'] != "없음"]
+
+# 5분 첫터치, 둘터치도 변경
+touch_data_5m['첫터치'] = '없음'
+touch_data_5m['지지저항'] = '없음'
+touch_data_5m['첫가격'] = '없음'
+touch_data_5m['둘터치'] = '없음'
+touch_data_5m['포지션'] = '없음'
+touch_data_5m['둘가격'] = '없음'
+
+# 엑셀로 저장
+touch_data_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+
+# 5분 신호 발생
+if info_5m_touch2.empty:
+    pass
+else:
+    # 결과 출력하기
+    result_append_5m = info_5m_touch2.astype('str')
+    print('둘터치 발생(5분) : ', result_append_5m)
+    
+    for i in range(len(result_append_5m)):
+        # 표시 데이터 변수
+        minline_trend = result_append_5m.iloc[i]['추세']
+        minline_dd = result_append_5m.iloc[i]['일시']
+        minline_price = result_append_5m.iloc[i]['가격']
+        minline_gubun = result_append_5m.iloc[i]['구분']
+        first_touch_dd = result_append_5m.iloc[i]['첫터치']
+        second_touch_dd = result_append_5m.iloc[i]['둘터치']
+        invest_how = result_append_5m.iloc[i]['포지션'] # 포지션
+        stop_loss = "" # 손절가
+        ftouch_ind = inte_df_5m[inte_df_5m['일시'] == float(first_touch_dd)].index[0]
+        stouch_ind = inte_df_5m[inte_df_5m['일시'] == float(second_touch_dd)].index[0]
+        
+        if invest_how == "매수" and result_append_5m.iloc[i]['첫가격'] <= result_append_5m.iloc[i]['둘가격'] and stouch_ind - ftouch_ind <= 2:
+            stop_loss = inte_df_5m[ftouch_ind:stouch_ind+1]['저가'].min()
+            # 첫터치와 둘터치 사이의 최저값에서 이격도 구하기
+            sample_df_5m = inte_df_5m[ftouch_ind:stouch_ind+1]
+            dd_5m = sample_df_5m[sample_df_5m['저가'] == stop_loss]['일시'].iloc[0]
+            separation_5m = inte_df_5m[inte_df_5m['일시']==float(dd_5m)]['저가이격도'].iloc[0]
+            tic_num = close_5m - stop_loss # 손절 틱수
+            goal_price = close_5m + tic_num
+            
+            # 첫터치, 둘터치 변경
+            touch_data_5m['첫터치'] = '없음'
+            touch_data_5m['지지저항'] = '없음'
+            touch_data_5m['첫가격'] = '없음'
+            touch_data_5m['둘터치'] = '없음'
+            touch_data_5m['포지션'] = '없음'
+            touch_data_5m['둘가격'] = '없음'
+            
+            # 엑셀로 저장
+            touch_data_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+            
+            # 1분 첫터치, 둘터치도 변경
+            touch_data_1m['첫터치'] = '없음'
+            touch_data_1m['지지저항'] = '없음'
+            touch_data_1m['첫가격'] = '없음'
+            touch_data_1m['둘터치'] = '없음'
+            touch_data_1m['포지션'] = '없음'
+            touch_data_1m['둘가격'] = '없음'
+            
+            # 엑셀로 저장
+            touch_data_1m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh1m.xlsx', index=False)
+            
+            # 보낼메세지
+            sendMessage = "최저선(신호) 일시/가격/추세/구분 : " + minline_dd + " / " + minline_price + " / " + minline_trend + " / " + minline_gubun + \
+            "\n첫터치(대기) 일시 : " + first_touch_dd + \
+            "\n둘터치(진입) 일시 : " + second_touch_dd + \
+            "\n진입가 / 포지션 : " + str(close_5m) + " / " + invest_how + \
+            "\n손절가 / 청산가 : " + str(stop_loss)+"("+str(tic_num)+"틱)" + " / " + str(goal_price)+"("+str(tic_num)+"틱)" + \
+            "\n이격도 : " + str(round(separation_5m,2))
+            
+            # 메세지 보내기
+            token = cacao_login_cls.auth_refresh(self) # 토큰 초기화
+            cacao_login_cls.send_myself(self, token, sendMessage) # 나에게 메세지보내기
+            
+            # 값 리턴하기
+            if tic_num > 10 :
+                # 결과 저장
+                result_data = result_data.append(result_append_5m, sort=False)
+                result_data.to_excel('F:/JusikData/short_invest/result.xlsx', index=False)
+                return '성공', close_5m + 1, goal_price, stop_loss, invest_how, tic_num
+            elif tic_num < 10 :
+                return '실패', '실패', '실패', '실패', '실패', '실패'
+            
+        elif invest_how == "매도" and result_append_5m.iloc[i]['첫가격'] >= result_append_5m.iloc[i]['둘가격'] and stouch_ind - ftouch_ind <= 2:
+            stop_loss = inte_df_5m[ftouch_ind:stouch_ind+1]['고가'].max()
+            # 첫터치와 둘터치 사이의 최대값에서 이격도 구하기
+            sample_df_5m = inte_df_5m[ftouch_ind:stouch_ind+1]
+            dd_5m = sample_df_5m[sample_df_5m['고가'] == stop_loss]['일시'].iloc[0]
+            separation_5m = inte_df_5m[inte_df_5m['일시']==float(dd_5m)]['고가이격도'].iloc[0]
+            tic_num = stop_loss - close_5m # 손절 틱수
+            goal_price = close_5m - tic_num 
+            
+            # 첫터치, 둘터치 변경
+            touch_data_5m['첫터치'] = '없음'
+            touch_data_5m['지지저항'] = '없음'
+            touch_data_5m['첫가격'] = '없음'
+            touch_data_5m['둘터치'] = '없음'
+            touch_data_5m['포지션'] = '없음'
+            touch_data_5m['둘가격'] = '없음'
+            
+            # 엑셀로 저장
+            touch_data_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+            
+            # 1분 첫터치, 둘터치도 변경
+            touch_data_1m['첫터치'] = '없음'
+            touch_data_1m['지지저항'] = '없음'
+            touch_data_1m['첫가격'] = '없음'
+            touch_data_1m['둘터치'] = '없음'
+            touch_data_1m['포지션'] = '없음'
+            touch_data_1m['둘가격'] = '없음'
+            
+            # 엑셀로 저장
+            touch_data_1m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh1m.xlsx', index=False)
+            
+            # 보낼메세지
+            sendMessage = "최저선(신호) 일시/가격/추세/구분 : " + minline_dd + " / " + minline_price + " / " + minline_trend + " / " + minline_gubun + \
+            "\n첫터치(대기) 일시 : " + first_touch_dd + \
+            "\n둘터치(진입) 일시 : " + second_touch_dd + \
+            "\n진입가 / 포지션 : " + str(close_5m) + " / " + invest_how + \
+            "\n손절가 / 청산가 : " + str(stop_loss)+"("+str(tic_num)+"틱)" + " / " + str(goal_price)+"("+str(tic_num)+"틱)" + \
+            "\n이격도 : " + str(round(separation_5m,2))
+            
+            # 메세지 보내기
+            token = cacao_login_cls.auth_refresh(self) # 토큰 초기화
+            cacao_login_cls.send_myself(self, token, invest_how + sendMessage) # 나에게 메세지보내기
+            
+            # 값 리턴하기
+            if tic_num > 10 :
+                # 결과 저장
+                result_data = result_data.append(result_append_5m, sort=False)
+                result_data.to_excel('F:/JusikData/short_invest/result.xlsx', index=False)
+                return '성공', close_5m + 1, goal_price, stop_loss, invest_how, tic_num
+            elif tic_num < 10 :
+                return '실패', '실패', '실패', '실패', '실패', '실패'
+            
+        else : 
+            # 둘터치 발생 시 해당 인덱스 가져오기
+            touch_data_sec_ind = touch_data_5m[touch_data_5m['일시'] == float(minline_dd)].index[0]
+            
+            # 둘터치의 데이터를 첫터치로 바꾸기
+            # 둘터치 -> 첫터치 // 포지션 : 매도 -> 지지, 매수 -> 저항 // 둘가격 : 종가 -> 시가
+            if invest_how == '매도' :
+                trans_po = '지지' 
+            elif invest_how == '매수' :
+                trans_po = '저항'
+            trans_pr = inte_df_5m.iloc[stouch_ind]['시가']
+            
+            # 1분 첫터치에 둘터치 데이터 넣기
+            touch_data_5m.loc[touch_data_sec_ind, '첫터치'] = second_touch_dd
+            touch_data_5m.loc[touch_data_sec_ind, '지지저항'] = trans_po
+            touch_data_5m.loc[touch_data_sec_ind, '첫가격'] = float(trans_pr)
+            
+            # 둘터치는 '없음'으로 바꾸기
+            touch_data_5m.loc[touch_data_sec_ind, '둘터치'] = '없음'
+            touch_data_5m.loc[touch_data_sec_ind, '포지션'] = '없음'
+            touch_data_5m.loc[touch_data_sec_ind, '둘가격'] = '없음'
+            
+            # 엑셀로 저장
+            touch_data_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+            
+            # 메세지 : 신호일자, 첫터치일자, 둘터치일자만 보내기
+            sendMessage = "[신호 실패]" + \
+            "실패신호 일시 : " + minline_dd + \
+            "\n첫터치(대기) 일시 : " + first_touch_dd + \
+            "\n둘터치(진입) 일시 : " + second_touch_dd + \
+            "\n몇분/포지션 : " + '5분 / ' + invest_how
+            
+            # 메세지 보내기
+            token = cacao_login_cls.auth_refresh(self) # 토큰 초기화
+            cacao_login_cls.send_myself(self, token, sendMessage) # 나에게 메세지보내기
+            
+            # 계속
+            continue
+
+3. minmaxLine_repeat
+# 1, 5분마다 최저선, 최대선 데이터 가져오기
+dd_1m = inte_lowhigh_1m.iloc[-1]['일시'] # 1분 최저,최대선 데이터의 마지막 일시
+dd_5m = inte_lowhigh_5m.iloc[-1]['일시'] # 1분 최저,최대선 데이터의 마지막 일시
+data1 = minLine_cls.exe_minLine(self, dd_1m, inte_df_1m, s_long, "1분-최저")
+data2 = maxLine_cls.exe_maxLine(self, dd_1m, inte_df_1m, s_long, "1분-최대")
+data3 = minLine_cls.exe_minLine(self, dd_5m, inte_df_5m, s_long, "5분-최저")
+data4 = maxLine_cls.exe_maxLine(self, dd_5m, inte_df_5m, s_long, "5분-최대")
+
+if data3.empty :
+    pass
+else :
+    inte_lowhigh_5m = inte_lowhigh_5m.append(data3, sort=False)
+    # 오름차순 정렬
+    inte_lowhigh_5m = inte_lowhigh_5m.sort_values('일시', ascending=True)
+    # 중복 제거
+    inte_lowhigh_5m = inte_lowhigh_5m.drop_duplicates(['일시'])
+    # 엑셀로 저장
+    inte_lowhigh_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+    
+if data4.empty :
+    pass
+else :
+    inte_lowhigh_5m = inte_lowhigh_5m.append(data4, sort=False)
+    # 오름차순 정렬
+    inte_lowhigh_5m = inte_lowhigh_5m.sort_values('일시', ascending=True)
+    # 중복 제거
+    inte_lowhigh_5m = inte_lowhigh_5m.drop_duplicates(['일시'])
+    # 엑셀로 저장
+    inte_lowhigh_5m.to_excel('F:/JusikData/short_invest/mini_hangseng_lh5m.xlsx', index=False)
+
+
+
+
